@@ -285,6 +285,30 @@ export function KnowledgeImportReview(props: KnowledgeImportReviewProps) {
     ? <AutomaticImportStatus {...props} lookup={observation.lookup} /> : <LegacyKnowledgeImportReview {...props} />
 }
 
+function ImportOriginals({ lookup, t, open }: {
+  lookup: KnowledgeImportReviewLookup | null
+  t: KnowledgeImportReviewProps['t']
+  open: (id: DocumentImportSourceId) => void
+}) {
+  const documents = lookup?.state.documents.filter(document => document.status === 'stored'
+    && (document.format === 'pdf' || document.format === 'docx')) ?? []
+  if (documents.length === 0) return null
+  return <section className={css.evidence} aria-label={t('import.sourcePreview.title')}>
+    <h3>{t('import.sourcePreview.title')}</h3>
+    <p>{t('import.sourcePreview.scope')}</p>
+    <div className={css.sourceRows}>{documents.map(document => <div key={document.id} className={css.sourceRow}>
+      <Button size="sm" variant="outline" onClick={() => open(document.id)}>
+        {t('import.sourcePreview.open', { name: document.name })}</Button>
+      {document.format === 'pdf' && <PdfExtractionNotice name={document.name} prepared
+        extraction={document.extraction?.kind === 'pdf-text' ? document.extraction : undefined}
+        visual={document.visual} t={t} />}
+      {document.format === 'docx' && <DocxExtractionNotice name={document.name} prepared
+        extraction={document.extraction?.kind === 'docx-text' ? document.extraction : undefined}
+        visual={document.docxVisual} t={t} />}
+    </div>)}</div>
+  </section>
+}
+
 function AutomaticImportStatus(props: KnowledgeImportReviewProps & { lookup: KnowledgeImportReviewLookup }) {
   const { lookup, sessionId, t } = props
   const [open, setOpen] = useState(false)
@@ -330,6 +354,7 @@ function AutomaticImportStatus(props: KnowledgeImportReviewProps & { lookup: Kno
         {progress !== undefined && progress.writes.length > 0 && <ul>{progress.writes.map(write =>
           <li key={write.operationId}><code>{write.documentId}</code> · <code>{write.version}</code></li>)}</ul>}
         <p>{t('import.automatic.history')}</p>
+        <ImportOriginals lookup={lookup} t={t} open={id => { setOpen(false); props.openSource(sessionId, id) }}/>
         {failed && <p role="alert">{t('import.automatic.retryFailed')}</p>}
         {progress?.recoverable && <Button variant="primary" disabled={pending} onClick={() => {
           const caller = new AbortController(); request.current = caller
@@ -623,26 +648,7 @@ function LegacyKnowledgeImportReview(props: KnowledgeImportReviewProps) {
         <p>{t('import.review.scope')}</p>
         <p>{t('import.review.legacyReadOnly')}</p>
         {lookup !== null && <p className={css.metadata}>{t('import.review.project', { id: lookup.workspaceId })}</p>}
-        {lookup !== null && lookup.state.documents.some(document => document.status === 'stored'
-          && (document.format === 'pdf' || document.format === 'docx')) && <section className={css.evidence}
-          aria-label={t('import.sourcePreview.title')}>
-          <h3>{t('import.sourcePreview.title')}</h3>
-          <p>{t('import.sourcePreview.scope')}</p>
-          <div className={css.sourceRows}>{lookup.state.documents.filter(document => document.status === 'stored'
-            && (document.format === 'pdf' || document.format === 'docx')).map(document =>
-            <div key={document.id} className={css.sourceRow}>
-              <Button size="sm" variant="outline" onClick={() => {
-                props.openSource(sessionId, document.id)
-                setOpen(false)
-              }}>{t('import.sourcePreview.open', { name: document.name })}</Button>
-              {document.format === 'pdf' && <PdfExtractionNotice name={document.name} prepared
-                extraction={document.extraction?.kind === 'pdf-text' ? document.extraction : undefined}
-                visual={document.visual} t={t} />}
-              {document.format === 'docx' && <DocxExtractionNotice name={document.name} prepared
-                extraction={document.extraction?.kind === 'docx-text' ? document.extraction : undefined}
-                visual={document.docxVisual} t={t} />}
-            </div>)}</div>
-        </section>}
+        <ImportOriginals lookup={lookup} t={t} open={id => { setOpen(false); props.openSource(sessionId, id) }}/>
         {observation?.phase === 'loading' && <p role="status">{t('import.review.loading')}</p>}
         {observation?.phase === 'deciding' && <p role="status">{t('import.review.deciding')}</p>}
         {observation?.phase === 'failed' && <p role="alert">{t(failureKey)}</p>}
