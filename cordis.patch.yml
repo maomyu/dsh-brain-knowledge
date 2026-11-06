@@ -1,0 +1,90 @@
+- id: tools
+  disabled: true
+- id: workspace
+  disabled: true
+- id: sandbox-policy
+  disabled: true
+- id: sandbox
+  disabled: true
+- id: fs-sandbox
+  disabled: true
+- id: subprocess
+  disabled: true
+- id: bash-sandbox
+  disabled: true
+- insert:
+    - id: brain-compat-tools
+      name: dsh-brain-knowledge/compat-tools
+    - id: brain-compat-workspace
+      name: dsh-brain-knowledge/compat-workspace
+    - id: brain-compat-sandbox-policy
+      name: dsh-brain-knowledge/compat-sandbox-policy
+      config:
+        mode: !!js process.env.DSH_PERMISSION_MODE ?? 'workspace-write'
+        workspaceRoot: !!js process.cwd()
+    - id: brain-compat-sandbox
+      name: dsh-brain-knowledge/compat-sandbox-local
+    - id: brain-compat-fs-sandbox
+      name: dsh-brain-knowledge/compat-fs-sandbox
+    - id: brain-compat-subprocess
+      name: dsh-brain-knowledge/compat-subprocess-local
+    - id: brain-compat-bash-sandbox
+      name: dsh-brain-knowledge/compat-bash-sandbox
+      config:
+        timeoutMs: 60000
+    - id: knowledge-controller
+      name: dsh-brain-knowledge/brain
+      config:
+        localLocations: true
+        automaticMaintenance:
+          enabled: true
+          reasoningEffort: off
+          maxReviewBytes: 480000
+          maxOutputBytes: 65536
+          maxOutputTokens: 8192
+          timeoutMs: 180000
+    - id: project-brain
+      name: dsh-brain-knowledge/brain-model
+      config:
+        maxContextBytes: 32768
+        maxReadBytes: 65536
+    - id: project-brain-curator
+      name: dsh-brain-knowledge/brain-curator
+      config:
+        retentionCheck: true
+    - id: brain-knowledge
+      name: dsh-brain-knowledge
+      config:
+        directory: !!js dshHomePath('brain-knowledge')
+    - id: artifact-controller
+      name: 'dsh-brain-knowledge/brain-artifact'
+    - id: task-controller
+      name: 'dsh-brain-knowledge/brain-task'
+      config:
+        maxProposalBytes: 16384
+        maxCompletionBytes: 65536
+        maxTasksPerProject: 1000
+        maxCardsPerProject: 1000
+        maxGoalBytes: 16384
+        maxGoalRunsPerProject: 1000
+        goalBudget:
+          noProgressPauseThreshold: 3
+          runSpawnCap: 12
+          runTokenWarnThreshold: 40000000
+          runTurnWarnThreshold: 300
+        goalChecks:
+          executable: !!js "process.platform === 'win32' ? 'cmd.exe' : '/bin/sh'"
+          args: !!js "process.platform === 'win32' ? ['/d', '/s', '/c'] : ['-c']"
+          timeoutMs: 30000
+          graceMs: 1000
+          maxOutputBytes: 4194304
+          maxDetailChars: 400
+        goalGit:
+          executable: git
+          timeoutMs: 60000
+          graceMs: 1000
+          maxOutputBytes: 1048576
+          baselineName: Harness Goal
+          baselineEmail: goal@localhost
+        maxConcurrent: 16
+        maxExecutions: 4

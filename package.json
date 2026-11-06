@@ -1,0 +1,216 @@
+{
+  "name": "dsh-brain-knowledge",
+  "version": "0.3.0",
+  "description": "大脑 · DeepSeek Harness 项目知识库",
+  "type": "module",
+  "main": "./src/host.js",
+  "exports": {
+    ".": "./src/host.js",
+    "./client": "./dist/client.js",
+    "./typert": "./src/typert.js",
+    "./package.json": "./package.json",
+    "./brain": "./dist/brain/index.js",
+    "./brain-model": "./dist/brain/model.js",
+    "./brain-curator": "./dist/brain/curator.js",
+    "./compat-tools": "./src/compat/tools.js",
+    "./compat-workspace": "./dist/brain/workspace.js",
+    "./compat-sandbox-policy": "./vendor/dao-runtime/sandbox-policy.js",
+    "./compat-sandbox-local": "./vendor/dao-runtime/sandbox-local.js",
+    "./compat-fs-sandbox": "./dist/brain/fs-sandbox.js",
+    "./compat-subprocess-local": "./vendor/dao-runtime/subprocess-local.js",
+    "./compat-bash-sandbox": "./vendor/dao-runtime/bash-sandbox.js",
+    "./compat-terminal-bash": "./vendor/dao-runtime/terminal-bash.js",
+    "./brain-task": "./dist/brain/task.js",
+    "./brain-artifact": "./dist/brain/artifact.js",
+    "./compat-fs-local": "./dist/brain/fs-local.js",
+    "./compat-goal-command": "./dist/brain/goal-command.js"
+  },
+  "files": [
+    "src/host.js",
+    "src/compat",
+    "src/store.js",
+    "src/typert.js",
+    "dist",
+    "vendor/dao-runtime",
+    "vendor/dao-knowledge/LICENSE",
+    "vendor/dao-task/LICENSE",
+    "cordis.patch.yml",
+    "README.md",
+    "preset-minimal.patch.yml",
+    "vendor/dao-workspace/LICENSE",
+    "vendor/dao-artifacts/LICENSE",
+    "vendor/dao-codex/LICENSE",
+    "vendor/dao-claude/LICENSE",
+    "vendor/dao-fs/LICENSE",
+    "vendor/dao-fs-local/LICENSE",
+    "vendor/dao-fs-sandbox/LICENSE",
+    "src/workflow.js",
+    "vendor/dao-task-ui/LICENSE",
+    "preset-goal.patch.yml",
+    "vendor/harness-goal/LICENSE"
+  ],
+  "engines": {
+    "dsh": "0.2.2-rc.1"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-bash-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-brand": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-fs-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-http-proxy": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-lazy-require": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-pwsh-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-sandbox-windows-acl": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-scope": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-sdk-protocol": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-session-query": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-skill": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-storage-domain": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-subagent": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-subprocess": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-terminal": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-timeout": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tool-executor-native": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-tools": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-typert-protocol": ">=0.2.2-rc.1 <0.3.0",
+    "@deepseek-ai/dsh-util-values": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-win32-process": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-workspace": "0.2.2-rc.1",
+    "@deepseek-ai/node-addon-system": "0.1.2",
+    "@deepseek-ai/schemastery": "3.19.0",
+    "@deepseek-ai/dsh-commands": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-goal": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-fs-patch": "0.2.2-rc.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": [
+        "./cordis.patch.yml",
+        "./preset-minimal.patch.yml",
+        "./preset-goal.patch.yml"
+      ]
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-api-gateway",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-workspace"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node build-brain.mjs && node build.mjs",
+    "prepare": "npm run build",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12",
+    "react-markdown": "^10.1.0"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "0.3.263",
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "@openai/codex": "0.153.4",
+    "hast-util-to-html": "9.0.5",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm": "3.1.0",
+    "mdast-util-to-hast": "13.2.1",
+    "micromark-extension-gfm": "3.0.0",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3",
+    "chokidar": "5.0.0",
+    "koffi": "3.1.1",
+    "diff": "^9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-bash-local": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-brand": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-fs": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-fs-local": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-http-proxy": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-lazy-require": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-sandbox-windows-acl": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-scope": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-session-query": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-skill": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-storage-domain": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-timeout": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-executor-native": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-util-values": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-win32-process": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-workspace": {
+      "optional": true
+    },
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/schemastery": {
+      "optional": true
+    },
+    "@deepseek-ai/node-addon-system": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-terminal": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-pwsh-local": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subprocess": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-subagent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-sdk-protocol": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-commands": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-goal": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-fs-patch": {
+      "optional": true
+    }
+  }
+}

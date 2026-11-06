@@ -1,0 +1,262 @@
+import { isAbsolute } from "node:path";
+import { Service } from "@deepseek-ai/cordis";
+import { z } from "zod";
+import z$1 from "@deepseek-ai/schemastery";
+//#region lib/types/session-mode.js
+/**
+* Per-session sandbox-mode override: the session log as the store. A runtime
+* switch (a UI policy control or test scenario) is recorded as one
+* `sandbox/mode` event on the session it applies to;
+* `effective = projection state ?? the deployment default`, so an override
+* survives restart by replay, two sessions can never see each other's state,
+* and there is no external config store. The event is log-only (the
+* `approval/*` precedent): the policy owner projects the fold into each model
+* request, while enforcing tools report operation-specific boundary markers.
+* EXECUTION honors the same fold through `ctx.sandboxPolicy.resolve()` — it
+* stamps the mode together with the calling session's workspace root onto each
+* capability call, weakest-precedence beneath an escalation grant.
+*
+* The override is policy state shared by every enforcing family (bash and
+* filesystem alike), so it lives here in the policy package rather than in any
+* one capability's seam.
+*
+* @module dsh-sandbox-policy/session-mode
+*/
+/** Every {@link SandboxMode}, for option advertisement and runtime validation of untrusted mode strings. */
+const SANDBOX_MODES = [
+	"read-only",
+	"workspace-write",
+	"danger-full-access"
+];
+/**
+* THE write path for a session's sandbox-mode override: appends exactly one
+* `sandbox/mode` event — the switch IS its event; nothing mutates mode state
+* out of band. Takes effect on the session's next confined call (bash or fs)
+* — consumers read the shared projection state.
+* @param session - the session the override belongs to.
+* @param mode - the mode every subsequent confined call in this session runs
+*   under (until the next switch).
+*/
+function setSandboxMode(session, mode) {
+	session.append("sandbox/mode", { mode });
+}
+//#endregion
+//#region lib/types/index.js
+/**
+* The sandbox POLICY home (`ctx.sandboxPolicy`): the single owner of the
+* deployment's sandbox fallbacks plus per-session resolution: the file-effect
+* {@link SandboxMode}, the `workspace-write` roots, the explicit extra writable
+* directories, and the override kit (the `sandbox/mode` event, its fold, and
+* its write path; the fold is the `sandboxMode` session-projection unit
+* registered here, while the event and write path come from
+* `./session-mode.ts`).
+* Before each agent request, the owner also contributes the resolved policy to
+* the cache-safe runtime-context snapshot. The agent loop logs that snapshot as
+* model history, so replay reconstructs the same mode and roots the enforcing
+* consumers resolve without rewriting the stable system prompt.
+*
+* Enforcing filesystem, one-shot bash, and terminal backends read the SAME
+* resolved policy here. The context describes that policy without inventorying
+* capabilities, while each backend retains its own enforcement dialect and each
+* tool owns its operation-specific denial and escalation guidance. The service
+* reads session state once at each operation boundary; executors and providers
+* remain session-free.
+*
+* @module @deepseek-ai/dsh-sandbox-policy
+*/
+/** Preserve execution-world spelling; enforcing providers resolve filesystem identity on their host. */
+function resolveWorkspaceRoot(path) {
+	if (!isAbsolute(path) || path.includes("\0")) throw new Error("sandbox-policy: workspace root must be an absolute execution-world path without NUL bytes");
+	return path;
+}
+/**
+* Validate and detach the configured extra writable directories. They stay in
+* their execution-world spelling here: a local host must not canonicalize a
+* remote path. The enforcing host validates each physical directory before granting.
+* @param roots - the configured extra roots, or the empty schema default.
+* @returns a frozen copy, or `undefined` when no extra grant exists.
+*/
+function resolveAdditionalWritableRoots(roots) {
+	if (roots === void 0 || roots.length === 0) return void 0;
+	for (const root of roots) if (!isAbsolute(root) || root.includes("\0")) throw new Error("sandbox-policy: additionalWritableRoots entries must be absolute execution-world paths");
+	return Object.freeze([...new Set(roots)]);
+}
+/** Render the policy without claiming which capabilities are mounted. */
+function renderPolicyContext(policy, enforceProtectedWritesInFullAccess) {
+	const protectedText = (policy.protectedWriteRoots?.length ?? 0) === 0 ? "" : " Protected project knowledge directories remain read-only to generic file and shell operations" + (enforceProtectedWritesInFullAccess ? " in every mode." : " in the current mode.");
+	switch (policy.mode) {
+		case "read-only": return "Current DSH file policy: read-only. Any available operation enforced by the DSH file sandbox cannot modify files in the standing mode. Do not refuse a required modification from this policy alone: try an available tool normally and follow any denial and escalation guidance it returns." + protectedText;
+		case "workspace-write": return `Current DSH file policy: workspace-write. Any available operation enforced by the DSH file sandbox may modify files under the session workspace: ${JSON.stringify(policy.workspaceRoot)}.` + ((policy.additionalWritableRoots?.length ?? 0) === 0 ? "" : ` Additional writable directories: ${JSON.stringify(policy.additionalWritableRoots)}.`) + " Some platform temporary areas may also be writable." + protectedText;
+		case "danger-full-access": return protectedText === "" ? "Current DSH file policy: danger-full-access. The DSH file sandbox does not restrict file modifications by available operations." : "Current DSH file policy: danger-full-access. Generic file and shell operations may modify ordinary paths." + protectedText;
+		/* v8 ignore next 4 -- SandboxMode is a typed same-process closed union; this branch is only the static exhaustiveness guard. */
+		default: {
+			const mode = policy.mode;
+			throw new Error(`unreachable sandbox mode: ${String(mode)}`);
+		}
+	}
+}
+/** The sandbox-mode projection's state schema (state equals the public shape). */
+const sandboxModeStateSchema = z.union([
+	z.literal("read-only"),
+	z.literal("workspace-write"),
+	z.literal("danger-full-access")
+]).nullable();
+const admissionKey = Symbol.for("@deepseek-ai/dsh-sandbox-policy/protected-write-admission");
+const admissionStore = globalThis;
+const protectedWriteAdmission = admissionStore[admissionKey] ??= {
+	activeGenericMutations: 0,
+	rootChangeHeld: false
+};
+/**
+* The sandbox-policy service (`ctx.sandboxPolicy`). Owns the deployment
+* default mode, fallback workspace root, explicit additional grants, and request-time policy
+* section. Tool layers call {@link resolve} for each execution so a session's
+* mode log and immutable cwd travel together to every enforcing capability.
+*/
+var SandboxPolicyService = class extends Service {
+	static Config = z$1.object({
+		mode: z$1.union([
+			"read-only",
+			"workspace-write",
+			"danger-full-access"
+		]).default("read-only"),
+		workspaceRoot: z$1.string(),
+		additionalWritableRoots: z$1.array(z$1.string()).default([]),
+		enforceProtectedWritesInFullAccess: z$1.boolean()
+	});
+	static inject = ["sessionProjections"];
+	/** The deployment default mode — the fallback beneath a session override. */
+	defaultMode;
+	/** The absolute `workspace-write` fallback root for calls without a session cwd. */
+	workspaceRoot;
+	/** Deployment-configured absolute execution paths granted for writes. */
+	additionalWritableRoots;
+	enforceProtectedWritesInFullAccess;
+	sessionRootProviders = /* @__PURE__ */ new Set();
+	protectedRootProviders = /* @__PURE__ */ new Set();
+	sandboxModeProjectionHandle;
+	constructor(ctx, config) {
+		super(ctx, "sandboxPolicy");
+		this.defaultMode = config.mode;
+		this.enforceProtectedWritesInFullAccess = config.enforceProtectedWritesInFullAccess ?? true;
+		this.workspaceRoot = resolveWorkspaceRoot(config.workspaceRoot ?? process.cwd());
+		this.additionalWritableRoots = resolveAdditionalWritableRoots(config.additionalWritableRoots);
+	}
+	async [Service.init]() {
+		const ctx = this.ctx;
+		this.sandboxModeProjectionHandle = await ctx.sessionProjections.register({
+			key: "sandboxMode",
+			stateVersion: 1,
+			stateSchema: sandboxModeStateSchema,
+			init: () => null,
+			apply: (state, event) => event.type === "sandbox/mode" ? event.data.mode : state
+		});
+		ctx.inject(["systemPrompt"], (scope) => {
+			scope.systemPrompt.context({
+				name: "sandbox:policy",
+				order: scope.systemPrompt.getContextOrder("SANDBOX_POLICY"),
+				text: (context) => {
+					const session = context.agent?.session;
+					return session === void 0 ? "" : renderPolicyContext(this.resolve({ session }), this.enforceProtectedWritesInFullAccess);
+				}
+			});
+		});
+	}
+	/**
+	* Contribute Session-local write grants, resolved afresh by every enforcing capability.
+	* The provider owns authorization, membership revocation and absolute directory identity.
+	* These grants never change the mode or apply to agentless calls; the request-context owner logs them.
+	* @param provider - synchronous resolver; return no roots for Sessions outside the owner's authority.
+	* @returns the contribution disposer, also attached to the calling plugin's lifetime.
+	*/
+	registerWritableRoots(provider) {
+		return this.ctx.effect(() => {
+			const contribution = (session) => provider(session);
+			this.sessionRootProviders.add(contribution);
+			return () => {
+				this.sessionRootProviders.delete(contribution);
+			};
+		}, "sandbox-policy.session-roots");
+	}
+	/** Register per-Session write exclusions, including full access unless deployment configuration disables them there.
+	* @param provider - synchronous current-root resolver; invalid paths fail the calling tool closed.
+	* @returns contribution disposer attached to the registering plugin's lifetime.
+	*/
+	registerProtectedWriteRoots(provider) {
+		return this.ctx.effect(() => {
+			const contribution = (session) => provider(session);
+			this.protectedRootProviders.add(contribution);
+			return () => {
+				this.protectedRootProviders.delete(contribution);
+			};
+		}, "sandbox-policy.protected-write-roots");
+	}
+	/** Reserve one generic file mutation through its provider settlement.
+	* The caller resolves current protected roots after reservation and releases in `finally`.
+	* @returns an idempotent release function.
+	* @throws while a protected-root change owns the Host process admission interval.
+	*/
+	reserveGenericMutation() {
+		if (protectedWriteAdmission.rootChangeHeld) throw new Error("sandbox-policy: protected write roots are changing; retry the file mutation");
+		protectedWriteAdmission.activeGenericMutations++;
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			protectedWriteAdmission.activeGenericMutations--;
+		};
+	}
+	/** Reserve a protected-root change only when no generic mutation is admitted.
+	* The caller holds the interval through location publication and releases in `finally`.
+	* @returns an idempotent release function.
+	* @throws while another transition or a generic mutation is admitted.
+	*/
+	reserveProtectedRootChange() {
+		if (protectedWriteAdmission.rootChangeHeld || protectedWriteAdmission.activeGenericMutations > 0) throw new Error("sandbox-policy: active file mutations prevent changing protected write roots");
+		protectedWriteAdmission.rootChangeHeld = true;
+		let released = false;
+		return () => {
+			if (released) return;
+			released = true;
+			protectedWriteAdmission.rootChangeHeld = false;
+		};
+	}
+	/**
+	* Resolve the complete policy for one capability call. An approved explicit
+	* mode outranks the session's last `sandbox/mode` event, which outranks the
+	* deployment default. A session cwd is its workspace-write boundary; the
+	* configured root is the fallback for agentless calls and sessions without a
+	* cwd. Additional deployment grants apply only in workspace-write mode.
+	* Protected-directory providers are skipped in danger-full-access only when
+	* enforceProtectedWritesInFullAccess is false; other modes retain them.
+	* @param request - optional session and approved mode override.
+	* @returns the per-call mode, absolute workspace root, and explicit additional roots.
+	*/
+	resolve(request = {}) {
+		const { session } = request;
+		const mode = request.mode ?? (session === void 0 ? void 0 : this.overrideOf(session)) ?? this.defaultMode;
+		const workspaceRoot = resolveWorkspaceRoot(session?.header.cwd ?? this.workspaceRoot);
+		const grants = session === void 0 ? [] : [...this.sessionRootProviders].flatMap((provider) => [...provider(session)]);
+		const protectedRoots = session === void 0 || mode === "danger-full-access" && !this.enforceProtectedWritesInFullAccess ? [] : [...this.protectedRootProviders].flatMap((provider) => [...provider(session)]);
+		if (protectedRoots.some((root) => !isAbsolute(root) || root.includes("\0"))) throw new Error("sandbox-policy: protectedWriteRoots must contain absolute directory paths");
+		const additionalWritableRoots = [...new Set([...this.additionalWritableRoots ?? [], ...grants].map(resolveWorkspaceRoot))].filter((root) => root !== workspaceRoot);
+		const protectedWriteRoots = [...new Set(protectedRoots.map(resolveWorkspaceRoot))];
+		return {
+			mode,
+			workspaceRoot,
+			...additionalWritableRoots.length === 0 ? {} : { additionalWritableRoots },
+			...protectedWriteRoots.length === 0 ? {} : { protectedWriteRoots },
+			...session === void 0 ? {} : { sessionId: session.id }
+		};
+	}
+	/**
+	* Read the session override without applying the deployment default.
+	* @param session - session whose log supplies the override.
+	* @returns the last logged mode, or `undefined` without one.
+	*/
+	overrideOf(session) {
+		return this.sandboxModeProjectionHandle.stateOf(session) ?? void 0;
+	}
+};
+//#endregion
+export { SANDBOX_MODES, SandboxPolicyService, SandboxPolicyService as default, setSandboxMode };

@@ -1,0 +1,26 @@
+.panel { border-top: 0.5px solid var(--dsw-alias-border-l3); padding: 8px 0; }
+.panel > summary { cursor: pointer; font-weight: 600; }
+.counts { margin-left: 8px; font-weight: 400; color: var(--dsw-alias-label-secondary); }
+.panel, .card { font-size: 12px; line-height: 1.5; }
+.hint, .reasons { color: var(--dsw-alias-label-secondary); }
+.pages { max-height: 40vh; overflow: auto; display: grid; gap: 8px; }
+.card { border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-xl); padding: 8px; min-width: 0; }
+.card header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.card header > code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.actions { display: flex; gap: 4px; }
+.reasons { margin: 4px 0; padding: 0; list-style: none; overflow-wrap: anywhere; }
+.reasons li { display: flex; align-items: flex-start; gap: 6px; }
+.reasons li > span { min-width: 0; }
+.step { min-width: 0; flex: 1; }
+.step details > summary { cursor: pointer; }
+.step details > p { margin: 4px 0; }
+.evidence { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.time { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.diff { box-sizing: border-box; overflow: auto; max-height: 160px; margin: 6px 0 0; padding: 4px 0; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); font: 12px/1.625 var(--ds-font-family-code); }
+.line { display: flex; align-items: flex-start; padding: 0 8px; }
+.sigil { flex: 0 0 12px; white-space: pre; font-weight: 600; user-select: none; color: var(--dsw-alias-label-secondary); }
+.text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.diff [data-kind="add"] .line { background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent); }
+.diff [data-kind="remove"] .line { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.diff [data-kind="add"] .sigil { color: var(--dsw-alias-state-success-primary); }
+.diff [data-kind="remove"] .sigil { color: var(--dsw-alias-state-error-primary); }
