@@ -1,3 +1,4 @@
+import { detachedAuditSession } from '../../dao-runtime/audit-session.ts'
 /** Private interactive inputs and a fresh MCP server identity; native user server settings remain unchanged. */
 import { lstat, mkdir, mkdtemp, realpath, writeFile } from 'node:fs/promises'
 import { isAbsolute, join, parse, relative, resolve } from 'node:path'
@@ -87,7 +88,7 @@ export async function terminalInvocation(directory: string, cwd: string, selecti
  * @returns after the input is flushed and its writer is closed; no completion is appended.
  */
 export async function retainTerminalInput(ctx: Context, terminal: NonNullable<ProjectTaskRecord['terminal']>, maxBytes: number): Promise<void> {
-  const session = ctx.sessions.prepare(terminal.sessionId, { meta: { cwd: terminal.cwd } })
+  const session = detachedAuditSession(ctx.sessions, terminal.sessionId, { meta: { cwd: terminal.cwd } })
   let event: SessionEvent
   if (terminal.selection.runtime === 'codex') {
     event = session.append('project-task/codex', { messageId: terminal.messageId, kind: 'input', text: terminal.inputText,
@@ -99,6 +100,6 @@ export async function retainTerminalInput(ctx: Context, terminal: NonNullable<Pr
   }
   if (Buffer.byteLength(JSON.stringify(event), 'utf8') > maxBytes) throw new Error('Task Terminal input exceeds the complete-event byte limit')
   await using handle = await ctx.sessionPersistence.create(session.header)
-  await handle.append([event])
+  await handle.append([{ ...event, ignorable: true }])
   await handle.flush()
 }

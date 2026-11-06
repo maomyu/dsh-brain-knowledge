@@ -1,0 +1,7 @@
+.root { padding: 12px; margin: 12px 0; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); font-size: 12px; line-height: 1.6; }
+.root p { margin: 8px 0; color: var(--dsw-alias-label-secondary); }
+.check { display: flex; gap: 8px; align-items: flex-start; }
+.check input { margin-top: 3px; }
+.choices { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0; }
+.choices [aria-pressed="true"] { background: var(--dsw-alias-interactive-bg-active); }
+.summary { font-size: 12px; line-height: 1.6; color: var(--dsw-alias-label-secondary); }

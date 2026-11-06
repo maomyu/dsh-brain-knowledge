@@ -1,0 +1,19 @@
+.trigger { white-space: nowrap; }
+.dialog { box-sizing: border-box; width: min(720px, 100%); max-height: 100%; }
+.content { min-height: 0; overflow: auto; }
+.body { display: flex; flex-direction: column; gap: 12px; min-height: 0; color: var(--dsw-alias-label-primary); }
+.body h3, .body h4, .body p { margin: 0; }
+.body h3, .body h4 { font-size: 14px; line-height: 20px; }
+.metadata { color: var(--dsw-alias-label-secondary); font-size: 12px; overflow-wrap: anywhere; }
+.proposal { max-height: min(42dvh, 400px); margin: 0; padding: 12px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-bg-layer-3); font: inherit; font-size: 13px; line-height: 20px; }
+.changes { display: flex; flex-direction: column; gap: 12px; margin: 8px 0 0; padding: 0; list-style: none; }
+.change { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.evidence { display: flex; flex-direction: column; gap: 6px; padding: 10px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); }
+.quote { margin: 4px 0 0; padding: 8px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--dsw-alias-bg-layer-3); font: inherit; font-size: 13px; line-height: 20px; }
+.comparedPages { display: flex; flex-direction: column; gap: 6px; margin: 0; padding-left: 20px; }
+.confirmation { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sourceRows { display: flex; flex-direction: column; gap: 8px; }
+.sourceRow { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+
+.proposal, .quote { --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2); --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2); }

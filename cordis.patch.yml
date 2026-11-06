@@ -88,3 +88,16 @@
           baselineEmail: goal@localhost
         maxConcurrent: 16
         maxExecutions: 4
+        nativeTerminal:
+          enabled: !!js process.platform === 'darwin'
+          directory: !!js "process.getBuiltinModule('node:path').join(process.getBuiltinModule('node:fs').realpathSync(dshHomePath('')), 'task-terminal')"
+    - id: brain-terminal-profile
+      name: dsh-brain-knowledge/terminal-profile
+    - id: brain-document-import
+      name: dsh-brain-knowledge/document-import
+      config:
+        maxPdfPages: 1000
+    - id: brain-knowledge-import
+      name: dsh-brain-knowledge/knowledge-import
+      config:
+        sessionDirectory: !!js dshHomePath('brain-import-conversations')

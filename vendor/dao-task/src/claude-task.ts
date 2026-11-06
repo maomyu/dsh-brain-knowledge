@@ -1,3 +1,4 @@
+import { detachedAuditSession } from '../../dao-runtime/audit-session.ts'
 /** Native Claude execution with acknowledged SDK events and a separate local audit Session. */
 import type { Context } from '@deepseek-ai/cordis'
 import { startClaudeCodeRun } from '@deepseek-ai/dsh-subagent-claude-code'
@@ -39,10 +40,10 @@ export async function executeClaudeTask(ctx: Context, record: ProjectTaskRecord,
   await using reviewOwner = reviewScope
   const execution = record.execution
   if (execution?.runtime !== 'claude') throw new Error('Claude Task requires a committed native execution receipt')
-  const session = ctx.sessions.prepare(execution.sessionId, { meta: { cwd } })
+  const session = detachedAuditSession(ctx.sessions, execution.sessionId, { meta: { cwd } })
   await using handle = await ctx.sessionPersistence.create(session.header)
   const audit = createNativeTaskAudit(async (data: ProjectTaskClaudeEvent): Promise<void> => {
-    await handle.append([session.append('project-task/claude', data)])
+    await handle.append([{ ...session.append('project-task/claude', data), ignorable: true }])
     await handle.flush()
   }, signal)
   const append = audit.append

@@ -5,6 +5,7 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { SERVICE } from './typert.js'
 import { BrainStore, roots } from './store.js'
 import { ConversationWorkflow } from './workflow.js'
+import { requestImport } from './imports.js'
 
 let markRequest
 let markFollow
@@ -24,7 +25,7 @@ function summary(project, entry) {
 }
 
 class BrainKnowledge extends TypertRemoteService {
-  static inject = ['workspaceRegistry', 'knowledgeController', 'taskController']
+  static inject = ['workspaceRegistry', 'knowledgeController', 'taskController', 'knowledgeImportController']
 
   constructor(ctx, config) {
     super(ctx, SERVICE)
@@ -54,6 +55,7 @@ class BrainKnowledge extends TypertRemoteService {
   async request(input, signal = AbortSignal.timeout(180_000)) {
     if (this.ctx.invocation?.peer.principal.kind !== 'owner') return { error: '仅当前应用所有者可以访问大脑。' }
     try {
+      if (input.op.startsWith('import-')) return await requestImport(this.ctx, input, signal)
       if (input.op === 'workflow' || input.op.startsWith('workflow-')) return await this.workflow.request(input, signal)
       if (input.op === 'projects') {
         const { projects } = await this.legacy.request(input)

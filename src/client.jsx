@@ -1,3 +1,4 @@
+import { ImportAction, ImportReviewAction } from './import-client.jsx'
 import React, { useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import { PACKAGE, SERVICE, descriptors } from './typert.js'
@@ -82,6 +83,9 @@ function registerUi(ctx) {
   ctx.slots.inject('main', () => ctx.slots.register({
     name: 'main', key: PANEL,
   }, () => <Panel api={api}/>))
+  ctx.slots.inject('conversation.session.header.actions', () => ctx.slots.register({
+    name: 'conversation.session.header.actions', id: 'brain-import-review', order: 45,
+  }, props => <ImportReviewAction key={props.sessionId} api={api} {...props}/>))
   ctx.slots.inject('conversation.input.dock', () => ctx.slots.register({
     name: 'conversation.input.dock', id: PANEL, order: 30,
   }, ({ sessionId }) => <React.Fragment key={sessionId}>
@@ -190,6 +194,7 @@ function Panel({ api }) {
       <header className="bk-header">
         <div className="bk-crumb">大脑 {project ? ' / ' + project.title : ''} {view === 'doc' && path ? ' / ' + path : ''}</div>
         <div className="bk-actions">
+          {project && <ImportAction key={project.id} api={api} project={project}/>}
           <button type="button" onClick={() => refresh(tick => tick + 1)}>刷新</button>
         </div>
       </header>

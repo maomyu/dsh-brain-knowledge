@@ -1,3 +1,4 @@
+import { detachedAuditSession } from '../../dao-runtime/audit-session.ts'
 /** Fresh, independently owned review Sessions; no execution permissions or Task-state mutations. */
 import { randomUUID } from 'node:crypto'
 import { addAbortListener } from 'node:events'
@@ -209,7 +210,7 @@ async function nativeReview(ctx: Context, request: TaskReviewRequest,
   const selection = request.selection
   /* v8 ignore if -- executeTaskReview synchronously dispatches only Codex and Claude routes here. */
   if (selection.runtime === 'harness') throw new Error('Native review requires a native route')
-  const session = ctx.sessions.prepare(request.sessionId, { meta: { cwd: request.cwd, origin: 'subagent' } })
+  const session = detachedAuditSession(ctx.sessions, request.sessionId, { meta: { cwd: request.cwd, origin: 'subagent' } })
   await using handle = await ctx.sessionPersistence.create(session.header)
   type NativeEvent = { readonly type: 'project-task/codex'
     readonly data: SessionEventMap['project-task/codex'] }
@@ -220,8 +221,9 @@ async function nativeReview(ctx: Context, request: TaskReviewRequest,
   const append = async (event: NativeEvent): Promise<void> => {
     try {
       if (Buffer.byteLength(JSON.stringify(event.data), 'utf8') > maxBytes) throw new Error('Complete review event exceeds its byte allowance')
-      await handle.append([event.type === 'project-task/codex'
-        ? session.append('project-task/codex', event.data) : session.append('project-task/claude', event.data)])
+      const receipt = event.type === 'project-task/codex'
+        ? session.append('project-task/codex', event.data) : session.append('project-task/claude', event.data)
+      await handle.append([{ ...receipt, ignorable: true }])
       await handle.flush()
     } catch (error) { auditFailure ??= { cause: error }; throw error }
   }

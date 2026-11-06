@@ -1,4 +1,7 @@
-import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { AutomaticReviewSettings, AutomaticReviewSummary, useAutomaticReviewDraft } from '../vendor/dao-task-ui/AutomaticReviewSettings.tsx'
+import { NativeExecution, GoalNativePool } from './native-execution.jsx'
+import { TaskReviewSourcePicker } from '../vendor/dao-task-ui/TaskReviewSourcePicker.tsx'
+import React, { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { AutomaticKnowledgeStatus } from '../vendor/dao-task-ui/AutomaticKnowledgeStatus.tsx'
 import { TaskKnowledgeChoice } from '../vendor/dao-task-ui/TaskKnowledgeChoice.tsx'
 import { TaskKnowledgeDecision } from '../vendor/dao-task-ui/TaskKnowledgeDecision.tsx'
@@ -34,7 +37,7 @@ export function ConversationWorkflowView({ api, sessionId }) {
   const active = useSyncExternalStore(api.sessionSelection.subscribe,
     () => (api.sessionSelection.getSnapshot().byId[sessionId]?.retainedBy.mainView ?? 0) > 0)
   const inWorkspace = (snapshot?.projects.length ?? 0) > 0
-  const refresh = async signal => {
+  const refresh = useCallback(async signal => {
     const sequence = ++requestNumber.current
     try {
       const value = await api.call({ op: 'workflow', sessionId }, signal)
@@ -45,7 +48,7 @@ export function ConversationWorkflowView({ api, sessionId }) {
     } catch (error) {
       if (!signal?.aborted && sequence === requestNumber.current) setError(errorText(error))
     }
-  }
+  }, [api, sessionId])
   useEffect(() => {
     if (!sessionId || !active) return
     const lifetime = new AbortController()
@@ -67,20 +70,20 @@ export function ConversationWorkflowView({ api, sessionId }) {
     return () => lifetime.abort()
   }, [api, sessionId, active, inWorkspace])
 
-  const call = async (op, fields = {}, signal) => {
+  const call = useCallback(async (op, fields = {}, signal) => {
     const result = await api.call({ op: 'workflow-' + op, sessionId, ...fields }, signal)
-    if (!['goal-options', 'goal-history', 'goal-change', 'task-read', 'goal-read', 'goal-coding'].includes(op)) {
+    if (!['goal-options', 'goal-history', 'goal-change', 'task-read', 'goal-read', 'goal-coding', 'goal-codex-models', 'task-codex-models', 'task-review-sources'].includes(op)) {
       void refresh(signal)
     }
     return result
-  }
+  }, [api, sessionId, refresh])
   if (!active || !snapshot || (!snapshot.goal && !snapshot.cards.some(card => card.status !== 'dismissed'))) return null
   return <section className="bk-workflow" aria-label="对话任务与目标">
     {error && <p role="alert">{error}</p>}
     {snapshot.goal && <GoalView key={snapshot.goal.id} api={api} goal={snapshot.goal}
       tasks={snapshot.goalTasks} call={call} projectId={snapshot.goalProjectId}/>}
     {snapshot.cards.filter(card => card.status !== 'dismissed').map(card => <TaskView key={card.id} card={card}
-      project={snapshot.projects.find(project => project.id === card.workspaceId)} api={api} call={call}/>)}
+      terminalAvailable={snapshot.terminalAvailable} task={snapshot.taskDetails?.find(task => task.id === card.taskId)} project={snapshot.projects.find(project => project.id === card.workspaceId)} api={api} call={call}/>)}
   </section>
 }
 
@@ -122,12 +125,27 @@ function saveArtifact(file) {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
-function TaskView({ card, project, api, call }) {
+function TaskView({ card, task, terminalAvailable, project, api, call }) {
+  const research = card.draft.research !== undefined
+  const artifact = card.draft.artifact !== undefined
+  const [execution, setExecution] = useState({ runtime: 'harness' })
+  const [reviewSources, setReviewSources] = useState([])
+  const [terminalConfirm, setTerminalConfirm] = useState(false)
+  const automatic = useAutomaticReviewDraft(card.id, execution.runtime)
+  const native = execution.runtime !== 'harness'
+  const terminalCandidate = terminalAvailable && native && !research && !artifact
+  const terminalSelection = execution.runtime === 'claude'
+    ? { ...execution, selection: { ...execution.selection, permissionMode: 'plan' } } : execution
   const [mode, setMode] = useState(card.draft.knowledgeMaintenance ?? 'automatic')
   const [allowDirty, setAllowDirty] = useState(false)
   const { busy, error, run } = useAction()
-  const invoke = (action, fields, signal) => call('task-' + action,
-    { cardId: card.id, projectId: card.workspaceId, ...fields }, signal)
+  const invoke = useCallback((action, fields, signal) => call('task-' + action,
+    { cardId: card.id, projectId: card.workspaceId, ...fields }, signal), [call, card.id, card.workspaceId])
+  const loadReviewSources = useCallback((_projectId, signal) =>
+    invoke('review-sources', {}, signal).then(result => result.groups), [invoke])
+  const codingReview = research || artifact ? {} : {
+    postSteps: automatic.postSteps, ...(automatic.enabled ? { review: automatic.policy } : {}), reviewSources,
+  }
   const completion = card.completion
   const discovery = completion?.knowledgeDiscovery
   const decision = completion?.knowledgeDecision
@@ -146,15 +164,46 @@ function TaskView({ card, project, api, call }) {
         {!!card.draft.verifySteps.length && <ol>{card.draft.verifySteps.map((item, i) => <li key={i}>{item}</li>)}</ol>}
         <p>执行位置 {card.draft.isolation === 'direct' ? '现有项目目录' : card.draft.isolation === 'worktree' ? '独立工作树' : '独立临时目录'}</p>
         {card.draft.brainRefs?.length > 0 && <p>计划读取 {card.draft.brainRefs.join('、')}</p>}
-        <KnowledgeMode value={mode} change={setMode} disabled={busy}/>
+        <NativeExecution value={execution} change={value => { setExecution(value); setTerminalConfirm(false) }}
+          disabled={busy || terminalConfirm} research={research} artifact={artifact} t={t}
+          loadModels={signal => invoke('codex-models', {}, signal).then(result => result.models)}/>
+        {!terminalConfirm && <KnowledgeMode value={mode} change={setMode} disabled={busy}/>}
+        {!research && !artifact && !terminalConfirm && <details><summary>独立审查与核对资料</summary>
+          <AutomaticReviewSettings draft={automatic} executor={execution.runtime} disabled={busy} t={t}/>
+          <TaskReviewSourcePicker workspaceId={card.workspaceId} loadSources={loadReviewSources}
+            selected={reviewSources} onChange={setReviewSources} disabled={busy} t={t}/>
+        </details>}
         {card.draft.isolation === 'direct' && <label>
           <input type="checkbox" checked={allowDirty} onChange={event => setAllowDirty(event.target.checked)}/>允许这次在有未提交改动的项目执行
         </label>}
         <div className="bk-workflow-actions">
-          <button type="button" disabled={!mode || busy} onClick={() => void commit('accept', { mode, allowDirty })}>确认执行</button>
+          {!terminalConfirm && <button type="button" disabled={!mode || busy}
+            onClick={() => void commit('accept', { mode, allowDirty, execution, ...codingReview })}>确认执行</button>}
+          {terminalCandidate && !terminalConfirm && <button type="button" disabled={busy}
+            onClick={() => setTerminalConfirm(true)}>交接到原生终端</button>}
+          {terminalConfirm && <>
+            <button type="button" disabled={busy} onClick={() => void commit('terminal', { selection: terminalSelection, allowDirty })}>确认打开终端</button>
+            <button type="button" disabled={busy} onClick={() => setTerminalConfirm(false)}>返回执行设置</button>
+          </>}
           <button type="button" disabled={busy} onClick={() => void commit('dismiss')}>拒绝任务</button>
         </div>
       </>}
+      {card.status === 'pending' && terminalConfirm && <p>终端会使用本机原生账户和所示项目目录。应用记录交接回执，任务结果由终端会话处理。</p>}
+      {card.status === 'accepted' && card.terminal === true && <p role="status">
+        {task?.terminalPhase === 'opened' ? '已交接到原生终端' : '终端交接待确认'}
+      </p>}
+      {card.status === 'accepted' && card.terminal === true && task?.terminalPhase !== 'opened' && <>
+        {card.draft.isolation === 'direct' && <label><input type="checkbox" checked={allowDirty}
+          onChange={event => setAllowDirty(event.target.checked)}/>允许这次在有未提交改动的项目执行</label>}
+        <button type="button" disabled={busy} onClick={() => void commit('terminal', { allowDirty })}>重试原生终端交接</button>
+      </>}
+      {terminalAvailable && task?.canOpenTerminal && !research && !artifact && <div className="bk-workflow-actions">
+        <button type="button" disabled={busy} onClick={() => void commit('open-terminal', { action: 'open' })}>在终端打开工作树</button>
+        {task.canResumeTerminal && <button type="button" disabled={busy}
+          onClick={() => void commit('open-terminal', { action: 'resume' })}>在终端继续原生任务</button>}
+      </div>}
+      {card.status === 'accepted' && !card.terminal && !research && !artifact &&
+        <AutomaticReviewSummary policy={card.automaticReview} postSteps={card.postSteps} t={t}/>}
       {completion && <>
         <pre>{completion.summary}</pre>
         {['pending', 'queued'].includes(completion.delivery) && <div className="bk-workflow-actions">
@@ -185,6 +234,7 @@ function TaskView({ card, project, api, call }) {
 function GoalSignoff({ goal, invoke }) {
   const [options, setOptions] = useState(null)
   const [taskRoutes, setTaskRoutes] = useState([])
+  const [nativeRoutes, setNativeRoutes] = useState([])
   const [mode, setMode] = useState(goal.plan.input.knowledgeMaintenance ?? 'automatic')
   const [documentationTasks, setDocumentationTasks] = useState(false)
   const [researchProjectChecks, setResearchProjectChecks] = useState(false)
@@ -214,7 +264,7 @@ function GoalSignoff({ goal, invoke }) {
       if (decision === 'approve') {
         if (!master || !mode) return
         const tasks = taskRoutes.map(index => available[index]).filter(Boolean).map(({ provider, model }) => ({ provider, model }))
-        retained.current = { ...common, models: { master, tasks },
+        retained.current = { ...common, models: { master, tasks: [...tasks, ...nativeRoutes] },
           budget: options.budget, knowledgeMaintenance: mode,
           documentationTasks, researchProjectChecks }
       } else retained.current = { ...common, ...(feedback.trim() ? { feedback: feedback.trim() } : {}) }
@@ -241,6 +291,8 @@ function GoalSignoff({ goal, invoke }) {
           {available.map((route, index) => <option key={route.provider + '/' + route.model} value={index}>{route.label}</option>)}
         </select>
       </label>}
+      <GoalNativePool value={nativeRoutes} change={setNativeRoutes} disabled={busy || !!retained.current} t={t}
+        loadModels={signal => invoke('codex-models', {}, signal).then(result => result.models)}/>
       <label><input type="checkbox" checked={documentationTasks} disabled={busy || !!retained.current}
         onChange={event => setDocumentationTasks(event.target.checked)}/>允许子任务生成文档产物</label>
       <label><input type="checkbox" checked={researchProjectChecks} disabled={busy || !!retained.current}

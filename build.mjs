@@ -1,5 +1,6 @@
 import { build } from 'esbuild'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { fileURLToPath } from 'node:url'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 
 const result = await build({
   entryPoints: ['src/client.jsx'],
@@ -16,6 +17,22 @@ const result = await build({
     '@deepseek-ai/dsh-client-ui-primitives': './src/primitives.jsx',
     '@deepseek-ai/dsh-util-crypto': './src/primitives.jsx',
   },
+  plugins: [{
+    name: 'offline-document-renderers',
+    setup(builder) {
+      builder.onResolve({ filter: /\?raw$/ }, ({ path }) => ({
+        path: fileURLToPath(import.meta.resolve(path.slice(0, -4))), namespace: 'raw-document',
+      }))
+      builder.onLoad({ filter: /.*/, namespace: 'raw-document' }, async ({ path }) => {
+        // A blob-based offline reader cannot resolve docx-preview's bare JSZip import.
+        const contents = path.endsWith('/docx-preview.mjs')
+          ? (await build({ entryPoints: [path], bundle: true, write: false, platform: 'browser',
+            format: 'esm', target: 'es2022', legalComments: 'inline' })).outputFiles[0].text
+          : await readFile(path, 'utf8')
+        return { contents, loader: 'text' }
+      })
+    },
+  }],
   inject: ['src/react-runtime.js'],
   legalComments: 'none',
   write: false,

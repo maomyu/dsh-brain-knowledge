@@ -7,6 +7,8 @@ const output = resolve('dist/brain')
 const source = name => resolve(upstream, name, 'src/index.ts')
 const modules = new Map([
   ['@deepseek-ai/dsh-fs-local', source('dao-fs-local')],
+  ['@deepseek-ai/dsh-api-knowledge-controller', source('dao-knowledge')],
+  ['@deepseek-ai/dsh-api-task-controller/native-knowledge', resolve(upstream, 'dao-task/src/native-knowledge.ts')],
   ['@deepseek-ai/dsh-api-task-controller', source('dao-task')],
   ['@deepseek-ai/dsh-workspace', source('dao-workspace')],
   ['@deepseek-ai/dsh-subagent-codex', source('dao-codex')],
@@ -23,6 +25,11 @@ await build({
     task: source('dao-task'),
     workspace: source('dao-workspace'),
     artifact: source('dao-artifacts'),
+    'document-import': source('dao-documents'),
+    'knowledge-import': source('dao-imports'),
+    worker: resolve(upstream, 'dao-documents/src/worker.ts'),
+    'terminal-profile': resolve('src/terminal-profile.js'),
+    terminal: resolve(upstream, 'dao-knowledge/src/terminal.ts'),
     'goal-command': resolve('src/goal-command.js'),
     'fs-local': source('dao-fs-local'),
     'fs-sandbox': source('dao-fs-sandbox'),

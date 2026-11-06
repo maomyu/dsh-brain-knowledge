@@ -1,6 +1,6 @@
 {
   "name": "dsh-brain-knowledge",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "大脑 · DeepSeek Harness 项目知识库",
   "type": "module",
   "main": "./src/host.js",
@@ -23,7 +23,11 @@
     "./brain-task": "./dist/brain/task.js",
     "./brain-artifact": "./dist/brain/artifact.js",
     "./compat-fs-local": "./dist/brain/fs-local.js",
-    "./compat-goal-command": "./dist/brain/goal-command.js"
+    "./compat-goal-command": "./dist/brain/goal-command.js",
+    "./document-import": "./dist/brain/document-import.js",
+    "./knowledge-import": "./dist/brain/knowledge-import.js",
+    "./terminal-profile": "./dist/brain/terminal-profile.js",
+    "./terminal": "./dist/brain/terminal.js"
   },
   "files": [
     "src/host.js",
@@ -47,17 +51,27 @@
     "src/workflow.js",
     "vendor/dao-task-ui/LICENSE",
     "preset-goal.patch.yml",
-    "vendor/harness-goal/LICENSE"
+    "vendor/harness-goal/LICENSE",
+    "vendor/dao-documents/LICENSE",
+    "vendor/dao-imports/LICENSE",
+    "vendor/dao-import-ui/LICENSE",
+    "src/imports.js",
+    "vendor/dao-document-ui/LICENSE"
   ],
   "engines": {
     "dsh": "0.2.2-rc.1"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "4.1.0",
+    "@deepseek-ai/dsh-agent": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-attachment": "0.2.2-rc.1",
     "@deepseek-ai/dsh-bash-local": "0.2.2-rc.1",
     "@deepseek-ai/dsh-brand": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-commands": "0.2.2-rc.1",
     "@deepseek-ai/dsh-fs": "0.2.2-rc.1",
     "@deepseek-ai/dsh-fs-local": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-fs-patch": "0.2.2-rc.1",
+    "@deepseek-ai/dsh-goal": "0.2.2-rc.1",
     "@deepseek-ai/dsh-http-proxy": "0.2.2-rc.1",
     "@deepseek-ai/dsh-lazy-require": "0.2.2-rc.1",
     "@deepseek-ai/dsh-llm": "0.2.2-rc.1",
@@ -80,10 +94,7 @@
     "@deepseek-ai/dsh-win32-process": "0.2.2-rc.1",
     "@deepseek-ai/dsh-workspace": "0.2.2-rc.1",
     "@deepseek-ai/node-addon-system": "0.1.2",
-    "@deepseek-ai/schemastery": "3.19.0",
-    "@deepseek-ai/dsh-commands": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-goal": "0.2.2-rc.1",
-    "@deepseek-ai/dsh-fs-patch": "0.2.2-rc.1"
+    "@deepseek-ai/schemastery": "3.19.0"
   },
   "dsh": {
     "bundle": {
@@ -113,19 +124,31 @@
   },
   "license": "UNLICENSED",
   "dependencies": {
+    "@aiden0z/pptx-renderer": "1.2.4",
     "@anthropic-ai/claude-agent-sdk": "0.3.263",
+    "@joplin/turndown-plugin-gfm": "^1.0.67",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "@napi-rs/canvas": "^1.0.8",
     "@openai/codex": "0.153.4",
+    "chokidar": "5.0.0",
+    "clsx": "^2.1.1",
+    "diff": "^9.0.0",
+    "docx-preview": "0.4.0",
+    "fflate": "^0.8.3",
     "hast-util-to-html": "9.0.5",
+    "koffi": "3.1.1",
+    "mammoth": "^1.12.2",
     "mdast-util-from-markdown": "^2.0.3",
     "mdast-util-gfm": "3.1.0",
     "mdast-util-to-hast": "13.2.1",
     "micromark-extension-gfm": "3.0.0",
+    "pdfjs-dist": "6.3.289",
+    "sharp": "^0.35.3",
+    "turndown": "^7.2.4",
+    "unpdf": "^1.8.1",
     "yaml": "^2.9.0",
-    "zod": "^4.4.3",
-    "chokidar": "5.0.0",
-    "koffi": "3.1.1",
-    "diff": "^9.0.0"
+    "yauzl": "^3.4.0",
+    "zod": "^4.4.3"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-bash-local": {
@@ -210,6 +233,12 @@
       "optional": true
     },
     "@deepseek-ai/dsh-fs-patch": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-agent": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-attachment": {
       "optional": true
     }
   }

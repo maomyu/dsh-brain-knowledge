@@ -24,11 +24,26 @@ export class ConversationWorkflow {
         ...(goal?.planHistory ?? []).flatMap(row => row.taskIds),
       ])
       const goalTasks = [...taskIds].map(id => tasks.inspect(direct.id, id)).filter(Boolean)
-      return { cards, goal, goalTasks, goalProjectId: direct?.id, projects: projects.map(({ id, title }) => ({ id, title })) }
+      const taskDetails = cards.flatMap(card => {
+        if (!card.taskId) return []
+        const task = tasks.inspect(card.workspaceId, card.taskId)
+        if (!task) return []
+        return [{
+          id: task.id, status: task.status, terminalPhase: task.terminal?.phase,
+          canOpenTerminal: task.isolation === 'worktree' && task.status.startsWith('closed-'),
+          canResumeTerminal: task.isolation === 'worktree' && task.status === 'closed-failed'
+            && (task.codex?.threadId !== undefined || task.claude?.sessionId !== undefined),
+        }]
+      })
+      return { cards, taskDetails, terminalAvailable: process.platform === 'darwin', goal, goalTasks, goalProjectId: direct?.id, projects: projects.map(({ id, title }) => ({ id, title })) }
     }
     if (input.op === 'workflow-goal-options') {
       if (!direct || goal?.phase !== 'SIGNOFF' || goal.id !== input.goalId) throw new Error('审批计划已变化。')
       return await tasks.goalReviewOptions(direct.id, input.sessionId)
+    }
+    if (input.op === 'workflow-goal-codex-models') {
+      if (!direct || goal?.phase !== 'SIGNOFF' || goal.id !== input.goalId) throw new Error('审批计划已变化。')
+      return { models: await tasks.codexModels(direct.id, signal) }
     }
     if (input.op === 'workflow-goal-review') {
       if (!direct || goal?.id !== input.goalId) throw new Error('审批计划已变化。')
@@ -68,11 +83,22 @@ export class ConversationWorkflow {
     const card = cards.find(item => item.id === input.cardId && item.workspaceId === input.projectId)
     if (!card) throw new Error('该任务不属于当前对话。')
     const args = [card.workspaceId, card.id]
+    if (input.op === 'workflow-task-codex-models') return { models: await tasks.codexModels(card.workspaceId, signal) }
+    if (input.op === 'workflow-task-review-sources') return {
+      groups: await this.ctx.knowledgeImportController.listTaskSources(card.workspaceId, signal),
+    }
+    if (input.op === 'workflow-task-terminal') {
+      if (card.status === 'pending' && !input.selection) throw new Error('请选择原生终端执行器。')
+      return await tasks.acceptTerminalCard(...args, input.selection ?? null, input.allowDirty === true, signal)
+    }
     if (input.op === 'workflow-task-dismiss') return await tasks.dismissCard(...args, signal)
     if (input.op === 'workflow-task-accept') {
       if (!['automatic', 'read-only'].includes(input.mode)) throw new Error('请选择知识沉淀方式。')
       return await tasks.acceptCodingCard(...args, {
-        execution: { runtime: 'harness' }, knowledgeMaintenance: input.mode,
+        execution: input.execution ?? { runtime: 'harness' }, knowledgeMaintenance: input.mode,
+        ...(input.review ? { review: input.review } : {}),
+        ...(input.postSteps ? { postSteps: input.postSteps } : {}),
+        ...(input.reviewSources?.length ? { reviewSources: input.reviewSources } : {}),
       }, input.allowDirty === true, signal)
     }
     if (input.op === 'workflow-task-delivery') {
@@ -82,6 +108,10 @@ export class ConversationWorkflow {
     if (!card.taskId) throw new Error('任务尚未执行。')
     const taskArgs = [card.workspaceId, card.taskId]
     switch (input.op) {
+      case 'workflow-task-open-terminal': {
+        if (!['open', 'resume'].includes(input.action)) throw new Error('无效的终端操作。')
+        return await tasks.openTerminal(...taskArgs, input.action, signal)
+      }
       case 'workflow-task-review': return await tasks.reviewTaskKnowledge(...taskArgs, signal)
       case 'workflow-task-automatic': return await tasks.resumeTaskAutomaticKnowledge(...taskArgs, signal)
       case 'workflow-task-stop': return await tasks.cancelTaskKnowledgeReview(...taskArgs, signal)

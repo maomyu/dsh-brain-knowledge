@@ -1,3 +1,4 @@
+import { detachedAuditSession } from '../../dao-runtime/audit-session.ts'
 /** Native Codex Task execution with a separately owned, append-only local audit Session. */
 import type { Context } from '@deepseek-ai/cordis'
 import { startCodexRun } from '@deepseek-ai/dsh-subagent-codex'
@@ -41,11 +42,11 @@ export async function executeCodexTask(ctx: Context, record: ProjectTaskRecord, 
   await using reviewOwner = reviewScope
   const execution = record.execution
   if (execution?.runtime !== 'codex') throw new Error('Native Task requires a committed Codex execution receipt')
-  const session = ctx.sessions.prepare(execution.sessionId, { meta: { cwd } })
+  const session = detachedAuditSession(ctx.sessions, execution.sessionId, { meta: { cwd } })
   await using handle = await ctx.sessionPersistence.create(session.header)
   const audit = createNativeTaskAudit(async (data: ProjectTaskCodexEvent): Promise<void> => {
     const event = session.append('project-task/codex', data)
-    await handle.append([event])
+    await handle.append([{ ...event, ignorable: true }])
     await handle.flush()
   }, signal)
   const append = audit.append

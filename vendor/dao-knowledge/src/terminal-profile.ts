@@ -1,7 +1,8 @@
 /** Prepare an app-independent dsh profile for an explicitly accepted terminal task. */
-import { lstat, mkdir, readFile, writeFile } from 'node:fs/promises'
+import { lstat, mkdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { lstatSync, realpathSync } from 'node:fs'
 import { isAbsolute, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { ProjectTaskTerminalKnowledge } from '@deepseek-ai/dsh-api-task-controller/types'
@@ -143,15 +144,19 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       const grant = await openTerminalKnowledgeGrant(() => current(taskId, project, directory,
         location.path, location.revision, false))
       try {
+        const pluginRoot = fileURLToPath(new URL('../../', import.meta.url))
+        const dependencies = join(profile, 'node_modules')
+        await mkdir(dependencies, { mode: 0o700 })
+        await symlink(pluginRoot, join(dependencies, 'dsh-brain-knowledge'), 'junction')
         const manifest = { name: 'dsh-profile-task-knowledge', private: true, dependencies: {
           '@deepseek-ai/dsh-fs-local': '*', '@deepseek-ai/dsh-session': '*',
-          '@deepseek-ai/dsh-session-persistence-jsonl': '*', '@deepseek-ai/dsh-api-knowledge-controller': '*',
+          '@deepseek-ai/dsh-session-persistence-jsonl': '*', 'dsh-brain-knowledge': 'link:' + pluginRoot,
         }, dsh: { profile: { bundles: [], patchReload: 'startup' } } }
         const entries = [
           { id: 'fs', name: '@deepseek-ai/dsh-fs-local', config: { cwd: project.path } },
           { id: 'sessions', name: '@deepseek-ai/dsh-session' },
           { id: 'persistence', name: '@deepseek-ai/dsh-session-persistence-jsonl', config: { root: join(home, 'journal'), compression: 'none' } },
-          { id: 'knowledge', name: '@deepseek-ai/dsh-api-knowledge-controller/terminal', config: {
+          { id: 'knowledge', name: 'dsh-brain-knowledge/terminal', config: {
             maxDocumentBytes: config.policy.maxDocumentBytes, maxIndexBytes: config.policy.maxIndexBytes,
             maxEntries: config.policy.maxEntries, maxDepth: config.policy.maxDepth, maxReadBytes: config.policy.maxReadBytes,
             maxSearchResults: config.policy.maxSearchResults, maxSearchMatches: config.policy.maxSearchMatches,

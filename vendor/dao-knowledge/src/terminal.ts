@@ -1,3 +1,4 @@
+import { detachedAuditSession } from '../../dao-runtime/audit-session.ts'
 /** Task-scoped stdio knowledge application plugin, launched only through a dsh profile. */
 import { addAbortListener } from 'node:events'
 import { isAbsolute, parse, resolve } from 'node:path'
@@ -76,12 +77,12 @@ async function serve(ctx: Context, config: Config, lifetime: AbortController): P
     path: config.brainPath, directory: config.brainPath, isDefault: false,
     revision: config.locationRevision === null ? null : brandString<KnowledgeLocationRevision>(config.locationRevision) }
   const taskId = brandString<ProjectTaskId>(config.taskId)
-  const session = ctx.sessions.prepare(undefined, { meta: { cwd: config.projectPath } })
+  const session = detachedAuditSession(ctx.sessions, undefined, { meta: { cwd: config.projectPath } })
   await using handle = await ctx.sessionPersistence.create(session.header)
   let writes = Promise.resolve()
   const append = (data: KnowledgeTerminalEvent): Promise<void> => {
     writes = writes.then(async () => {
-      const event = session.append('knowledge/terminal', data)
+      const event = { ...session.append('knowledge/terminal', data), ignorable: true as const }
       if (Buffer.byteLength(JSON.stringify(event), 'utf8') > config.maxEventBytes) throw new Error('Complete terminal knowledge Session event exceeds maxEventBytes')
       await handle.append([event])
       await handle.flush()

@@ -1,0 +1,13 @@
+.root { min-width: 0; font-size: 13px; line-height: 1.5; color: var(--dsw-alias-label-primary); }
+.path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-secondary); }
+.output { position: relative; min-width: 0; }
+.viewer { height: 28rem; max-height: min(28rem, 55vh); overflow: hidden; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-interactive-bg-hover); }
+.frame { display: block; width: 100%; height: 100%; border: 0; }
+.status { position: absolute; inset: 0 0 auto; padding: 24px; color: var(--dsw-alias-label-secondary); }
+.output[data-document-state="error"] .viewer { display: none; }
+.failure { padding: 16px; border: 0.5px solid var(--dsw-alias-border-l3); border-radius: var(--dsw-radius-sm); }
+.failure p { margin: 0 0 12px; }
+.transcript { margin: 8px 0; color: var(--dsw-alias-label-secondary); }
+.transcript summary { cursor: pointer; }
+.transcript summary:focus-visible { outline: 2px solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.transcript pre { max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--dsw-font-markdown-code-font-family); }
