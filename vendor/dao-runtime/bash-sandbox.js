@@ -1,5 +1,5 @@
 import { SandboxUnavailableError, classifyRunnerFailure, isRunnerSpawnFailure, matchesSignature, matchesSignature as matchesSignature$1, mergeConfinementEnv, supportsProtectedWrites } from "./sandbox.js";
-import { LocalBashExecutor } from "@deepseek-ai/dsh-bash-local";
+import { ENV_OVERRIDES, LocalBashExecutor } from "@deepseek-ai/dsh-bash-local";
 //#region lib/types/helpers.js
 /**
 * Classify a failed run against the selected backend's denial dialect.
@@ -74,15 +74,17 @@ var SandboxBashExecutor = class SandboxBashExecutor extends LocalBashExecutor {
 			}
 		}));
 		let confined;
-		const ex = await this.executeArgv(spec, async (signal, env) => {
+		// The target Host's preparation callback returns argv, not { argv, env }.
+		// Keep provider environment exclusions after both ordinary and managed values.
+		const executionSpec = { ...spec };
+		const ex = await this.executeArgv(executionSpec, async (signal) => {
 			const prepared = await this.confine(spec, policy, signal);
 			signal.throwIfAborted();
 			if (protectedWrites && mode !== "read-only" && !supportsProtectedWrites(prepared)) throw new SandboxUnavailableError(mode, "selected provider reports partial protected-write enforcement", true);
 			confined = prepared;
-			return {
-				argv: prepared.argv,
-				env: mergeConfinementEnv(env, prepared.env, prepared)
-			};
+			executionSpec.env = mergeConfinementEnv({ ...ENV_OVERRIDES, ...spec.env, ...spec.dshEnv }, prepared.env, prepared);
+			executionSpec.dshEnv = undefined;
+			return prepared.argv;
 		}, (process) => {
 			const facts = confined;
 			this.processFacts.set(process, {

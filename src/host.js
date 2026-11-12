@@ -83,7 +83,7 @@ class BrainKnowledge extends TypertRemoteService {
       if (input.op === 'index') return await this.index(project, signal)
       if (input.op === 'search') return await this.search(project, input, signal)
       if (input.op === 'read') return { page: await this.read(project, input.path, signal) }
-      if (input.op === 'source') return await this.brain.resolveSource(project.id, input.path, input.source, signal)
+      if (input.op === 'source') return await this.source(project.id, input, signal)
       if (input.op === 'status') return await this.status(project, input, signal)
       if (input.op === 'proposal') {
         const { operationId, revision, proposalId, action, note, truth } = input
@@ -104,6 +104,19 @@ class BrainKnowledge extends TypertRemoteService {
       return { error: error instanceof Error ? error.message : String(error),
         reason: typeof error?.details?.reason === 'string' ? error.details.reason : undefined }
     }
+  }
+
+  async source(projectId, input, signal) {
+    const result = await this.brain.resolveSource(projectId, input.path, input.source, signal)
+    if (result.status !== 'available' || result.message === undefined) return result
+    const query = this.ctx.get('sessionQuery')
+    using observation = await query.observeSession(result.sessionId, { signal, projectionMode: 'none' })
+    const event = observation.events.find(event => event.seq === result.message.seq)
+    const original = event?.type === 'user/message' && event.data.id === result.message.id ? event.data
+      : event?.type === 'assistant/message' && event.data.message.id === result.message.id ? event.data.message : undefined
+    if (original === undefined) return { status: 'unavailable', reason: 'message-missing' }
+    const text = original.content.filter(block => block.type === 'text').map(block => block.text).join('\n')
+    return { ...result, original: { text, time: event.time, role: original.role } }
   }
 
   async index(project, signal) {

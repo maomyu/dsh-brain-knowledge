@@ -1,5 +1,6 @@
 import { ImportAction, ImportReviewAction } from './import-client.jsx'
 import React, { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Markdown from 'react-markdown'
 import { PACKAGE, SERVICE, descriptors } from './typert.js'
 import css from './styles.css'
@@ -71,6 +72,34 @@ function registerUi(ctx) {
       }
     },
     sessionOpen: id => ctx.uiWorkspace.openSession(id),
+    canInspectSources: typeof ctx.uiWorkspace.openInspection === 'function',
+    sourceOpen: async source => {
+      if (typeof ctx.uiWorkspace.openInspection === 'function') {
+        return ctx.uiWorkspace.openInspection({ sessionId: source.sessionId, workspaceId: source.workspaceId,
+          spaceId: source.spaceId, message: source.message })
+      }
+      if (source.archived) return false
+      ctx.uiWorkspace.openSession(source.sessionId)
+      const id = source.sessionId
+      await ctx.sessions.using(id, { source: 'brainSource' }, async reference => {
+        const { session } = await reference.ready
+        await session.loadThrough(source.message.seq)
+      })
+      const kind = 'input-message'
+      const selector = '[data-brain-source="' + CSS.escape(id + '/' + source.message.id) + '"],'
+        + '[data-chat-node-key="' + CSS.escape(kind.length + ':' + kind + source.message.id) + '"]'
+      const deadline = performance.now() + 2000
+      do {
+        const target = document.querySelector(selector)
+        if (target) {
+          target.scrollIntoView({ block: 'center' })
+          target.animate([{ backgroundColor: 'var(--dsw-alias-state-business-secondary, #e0eaff)' }, { backgroundColor: 'transparent' }], 1400)
+          return true
+        }
+        await new Promise(resolve => requestAnimationFrame(resolve))
+      } while (performance.now() < deadline)
+      return false
+    },
     sessionSelection: {
       subscribe: listener => ctx.sessions.list.subscribe(listener),
       getSnapshot: () => ctx.sessions.list.getSnapshot(),
@@ -125,6 +154,13 @@ function Notices({ notices }) {
 }
 
 function Panel({ api }) {
+  const [navigationSeat, setNavigationSeat] = useState(null)
+  useEffect(() => {
+    const sync = () => setNavigationSeat(document.querySelector('[data-dsh-workbench-sidebar]'))
+    sync()
+    window.addEventListener('dsh-workbench-sidebar-change', sync)
+    return () => window.removeEventListener('dsh-workbench-sidebar-change', sync)
+  }, [])
   const [route, setRoute] = useState(api.route)
   const [tick, refresh] = useState(0)
   const [query, setQuery] = useState('')
@@ -167,7 +203,7 @@ function Panel({ api }) {
     .filter(page => page.status !== 'archived')
     .sort((left, right) => (right.updatedAt ?? '').localeCompare(left.updatedAt ?? ''))
   const title = view === 'doc' ? doc.value?.title : displays[view]
-  return <div className="bk-shell">
+  const navigation = (
     <aside className="bk-sidebar" aria-label="大脑导航">
       <div className="bk-brand"><Icon/>大脑</div>
       <div className="bk-subnav">
@@ -190,6 +226,9 @@ function Panel({ api }) {
       </div>)}
       </div>)}
     </aside>
+  )
+  return <div className="bk-panel"><div className="bk-shell" data-docked={navigationSeat ? '' : undefined}>
+    {navigationSeat ? createPortal(navigation, navigationSeat) : navigation}
     <main className="bk-main">
       <header className="bk-header">
         <div className="bk-crumb">大脑 {project ? ' / ' + project.title : ''} {view === 'doc' && path ? ' / ' + path : ''}</div>
@@ -235,7 +274,7 @@ function Panel({ api }) {
           </>}
       </div>
     </main>
-  </div>
+  </div></div>
 }
 
 function TreePage({ page, path, open }) {
@@ -322,6 +361,7 @@ function Health({ indexes, open, refresh }) {
 
 function Reader({ api, page, proposalId, done }) {
   const [failure, setFailure] = useState('')
+  const [source, setSource] = useState(null)
   const [busy, setBusy] = useState(false)
   const [version, setVersion] = useState('')
   const selected = page.versions.find(item => item.id === version)
@@ -332,7 +372,8 @@ function Reader({ api, page, proposalId, done }) {
       if (source.sessionId) return api.sessionOpen(source.sessionId)
       const result = await api.call({ op: 'source', projectId: page.projectId, path: page.path, source: source.ref })
       if (result.status !== 'available') throw new Error('该来源对话暂时无法打开。')
-      api.sessionOpen(result.sessionId)
+      if (result.original) setSource(result)
+      else api.sessionOpen(result.sessionId)
     } catch (error) { setFailure(message(error)) }
   }
   const revise = async (op, input) => {
@@ -380,9 +421,11 @@ function Reader({ api, page, proposalId, done }) {
       </div>
     </div>
     <Failure text={failure}/>
+    {source && <OriginalMessage source={source} close={() => setSource(null)}
+      open={source.archived && !api.canInspectSources ? undefined : () => api.sourceOpen(source)}/>}
     {page.source && <div className="bk-notice">来源 · {page.source.navigable ? '项目对话' : page.source.name}
       {(page.source.sessionId || page.source.navigable) &&
-        <button type="button" onClick={() => void openSource(page.source)}>打开来源对话</button>}
+        <button type="button" onClick={() => void openSource(page.source)}>查看来源原文</button>}
       {page.source.quote && <blockquote>{page.source.quote}</blockquote>}
     </div>}
     {page.body ? <div className="bk-markdown"><Markdown skipHtml components={{
@@ -395,7 +438,7 @@ function Reader({ api, page, proposalId, done }) {
       <ol>{page.timeline.map((item, index) => <li key={item.time + '/' + index}>
         <p>{date(item.time)} · {item.summary}</p>
         {item.evidence && <blockquote>{item.evidence}</blockquote>}
-        {item.attribution?.navigable && <button type="button" onClick={() => void openSource(item.attribution)}>打开来源对话</button>}
+        {item.attribution?.navigable && <button type="button" onClick={() => void openSource(item.attribution)}>查看来源原文</button>}
       </li>)}</ol>
     </details>}
     {!!page.proposals?.length && <details className="bk-history" open>
@@ -419,6 +462,20 @@ function Reader({ api, page, proposalId, done }) {
       </> : <p>暂无旧版本。</p>}
     </details>
   </article>
+}
+
+function OriginalMessage({ source, close, open }) {
+  const ref = useRef(null)
+  useEffect(() => { ref.current?.showModal() }, [])
+  return <dialog ref={ref} className="bk-source-dialog" aria-label="来源原消息" onClose={close}>
+    <h2>来源原消息</h2>
+    <p className="bk-muted">{source.original.role === 'assistant' ? '助手' : '用户'} · {date(source.original.time)}</p>
+    <blockquote>{source.original.text}</blockquote>
+    <div className="bk-actions">
+      <button type="button" onClick={close}>关闭</button>
+      {open && <button type="button" onClick={() => void open()}>在对话中定位</button>}
+    </div>
+  </dialog>
 }
 
 const proposalActions = { keep: '保留现有正文', replace: '采用提案', merge: '合并正文' }

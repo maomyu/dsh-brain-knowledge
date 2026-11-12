@@ -11,6 +11,8 @@ const result = await build({
   outdir: 'dist',
   platform: 'browser',
   target: 'es2022',
+  minify: process.env.BRAIN_BENCH_UNMINIFIED !== '1',
+  keepNames: true,
   external: ['react', 'react-dom'],
   loader: { '.css': 'text', '.module.css': 'local-css' },
   alias: {
@@ -27,7 +29,7 @@ const result = await build({
         // A blob-based offline reader cannot resolve docx-preview's bare JSZip import.
         const contents = path.endsWith('/docx-preview.mjs')
           ? (await build({ entryPoints: [path], bundle: true, write: false, platform: 'browser',
-            format: 'esm', target: 'es2022', legalComments: 'inline' })).outputFiles[0].text
+            format: 'esm', target: 'es2022', minify: true, legalComments: 'inline' })).outputFiles[0].text
           : await readFile(path, 'utf8')
         return { contents, loader: 'text' }
       })
